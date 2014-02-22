@@ -31,7 +31,8 @@ public class ControllerUtils {
 		  matcher = pattern.matcher(ip);
 		  return matcher.matches();	    	    
 	}
-
+	
+	
 	/**
 	 * 
 	 * @return HashMap<IpAdd, Interface Name>
@@ -97,14 +98,16 @@ public class ControllerUtils {
 	    return output;
 	}
 	
-	static boolean removeAlias(String interfaceName) throws IOException, InterruptedException {
+	static boolean removeAlias(String interfaceName) throws IOException, InterruptedException  {
 		String cmd = "sudo ifconfig " + interfaceName +" down";
 		return executeCmdGetStatus(cmd);
+		
 	}
 	
-	static boolean setAlias(String interfaceName, String ip) throws IOException, InterruptedException {
+	static boolean setAlias(String interfaceName, String ip) throws IOException, InterruptedException  {
 		String cmd = "sudo ifconfig " + interfaceName +" " + ip + " up";
 		return executeCmdGetStatus(cmd);
+		
 	}
 	
 	/**
