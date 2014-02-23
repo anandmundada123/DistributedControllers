@@ -28,7 +28,7 @@ public class DistributedControllers extends ReceiverAdapter{
 	// ethernet counter, this is useful while creating Alias
 	private int ethCnt;
 	// Hash function which uses consistent hashing
-	private ConsistentHash<Address> hashFun;
+	private ConsistentHash <Address> hashFun;
 	// Global IP Address
 	private ArrayList <String> globalIpPool;
 	// Local IP List
@@ -179,6 +179,10 @@ public class DistributedControllers extends ReceiverAdapter{
 	}
 
 	public void receive(Message msg) {
+		if (ownAddr == null) {
+			ownAddr = channel.getAddress();
+			System.out.println("Own Address:" + ownAddr);
+		}
 	    final String m =  msg.toStringAsObject();
 	    if(m.equals(ControllerConstants.MASTER_ID_UPDATE_MSG)) {
 	    	masterAddr = msg.getSrc();
@@ -209,9 +213,18 @@ public class DistributedControllers extends ReceiverAdapter{
 					}
 	    			localIpEthMap.put(ipAdd, interfaceName);
 	    			localIpPool.add(ipAdd);
+	    			if(addrList.size() > 1) {
+	    				String remMsg = ControllerConstants.ADDR_REM_MSG + ControllerConstants.MSG_INFO_SEPERATOR + ipAdd;
+	    				System.out.println("\n\t Sending Remove message");
+	    				sendMesssage(null, remMsg);
+	    			}
 	    		}
-	    	} else if (localIpPool.contains(ipAdd)) {
-	    		System.out.println("Remove IP Address to list" + ipAdd);
+	    	} 
+	    }else if (m.startsWith(ControllerConstants.ADDR_REM_MSG)) {
+	    	String msgPart[] = m.split(ControllerConstants.MSG_INFO_SEPERATOR);
+	    	String ipAdd = msgPart[1];
+	    	if(!ownAddr.equals(msg.getSrc()) && localIpPool.contains(ipAdd)) {
+	    		System.out.println("Removing IP Address from my list: " + ipAdd);
 	    		String interfaceName = localIpEthMap.get(ipAdd);
 	    		try {
 					ControllerUtils.removeAlias(interfaceName);

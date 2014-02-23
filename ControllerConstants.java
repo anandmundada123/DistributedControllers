@@ -18,5 +18,6 @@ public class ControllerConstants {
 	 */
 	static final String MASTER_ID_UPDATE_MSG = "MASTER_UPDATE";
 	static final String ADDR_ADD_MSG = "ADD_ADDRESS";
+	static final String ADDR_REM_MSG = "REMOVE_ADDRESS";
 	static final String MSG_INFO_SEPERATOR = ";";
 }
