@@ -5,6 +5,7 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -31,7 +32,6 @@ public class ControllerUtils {
 		  matcher = pattern.matcher(ip);
 		  return matcher.matches();	    	    
 	}
-	
 	
 	/**
 	 * 
@@ -98,6 +98,25 @@ public class ControllerUtils {
 	    return output;
 	}
 	
+	static String getIpAddress() {
+		try {
+			return (InetAddress.getLocalHost().getHostAddress());
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	static String getHostName() {
+		try {
+			return (InetAddress.getLocalHost().getHostName());
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	
 	static boolean removeAlias(String interfaceName) throws IOException, InterruptedException  {
 		String cmd = "sudo ifconfig " + interfaceName +" down";
 		return executeCmdGetStatus(cmd);
@@ -108,6 +127,11 @@ public class ControllerUtils {
 		String cmd = "sudo ifconfig " + interfaceName +" " + ip + " up";
 		return executeCmdGetStatus(cmd);
 		
+	}
+	
+	static boolean broadCastArpPkt(String ipAdd) throws IOException, InterruptedException {
+		String cmd = "sudo arping -S " + ipAdd + " -c 1 -B";
+		return executeCmdGetStatus(cmd);
 	}
 	
 	/**

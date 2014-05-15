@@ -2,15 +2,14 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
-
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
 import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
-
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 
@@ -28,7 +27,7 @@ public class DistributedControllers extends ReceiverAdapter{
 	// ethernet counter, this is useful while creating Alias
 	private int ethCnt;
 	// Hash function which uses consistent hashing
-	private ConsistentHash <Address> hashFun;
+	private ConsistentHash hashFun;
 	// Global IP Address
 	private ArrayList <String> globalIpPool;
 	// Local IP List
@@ -37,6 +36,8 @@ public class DistributedControllers extends ReceiverAdapter{
 	private HashMap<String, String> localIpEthMap;
 	// List of all members in cluster
 	private ArrayList <Address> addrList;
+	// time to add alias
+	private long totalTime = 0;
 	
 	/**
 	 * Constrcutor, Initialize all data structures
@@ -50,8 +51,8 @@ public class DistributedControllers extends ReceiverAdapter{
 		ethCnt = 0;
 		isMaster = false;
 		masterAddr  = null;
-		HashFunction hf = Hashing.sha256();
-		hashFun = new ConsistentHash<Address> (hf, 2);	
+		HashFunction hf = Hashing.sha512();
+		hashFun = new ConsistentHash (hf, 2);	
 		addrList = new ArrayList<Address>();
 	}
 	
@@ -59,6 +60,7 @@ public class DistributedControllers extends ReceiverAdapter{
          // use the default config, udp.xml
 		channel=new JChannel();
         // Store own address
+		channel.setName(ControllerUtils.getHostName());
         channel.setReceiver(this);
         channel.connect(ControllerConstants.CHANNEL_NAME);
         eventLoop();
@@ -80,20 +82,18 @@ public class DistributedControllers extends ReceiverAdapter{
 	            } else if (line.startsWith("address")) {
 	            	System.out.println("Master Address:" + masterAddr);
 	            	System.out.println("my Address:" + ownAddr);
-	            } else if (line.startsWith("clear")) {
-	            	ControllerUtils.executeCmdGetStatus("clear");
 	            } else if (line.startsWith("interfaces")) {
 	            	System.out.println(localIpEthMap);
 	            } else if (line.startsWith("nodes")) {
 	            	System.out.println(addrList);
 	            } else if (line.startsWith("help")) {
 	            	System.out.println("You can enter following commands:");
-	            	System.out.println("local\t\tPrint all ip address assigned to this node");
-	            	System.out.println("global\t\tPrint all ip address in IP Pool");
+	            	System.out.println("help\t\tGet Help");
 	            	System.out.println("address\t\tPrint master address and own address");
-	            	System.out.println("clear\t\tclear Screen");
+	            	System.out.println("global\t\tPrint all ip address in IP Pool");
+	            	System.out.println("interfaces\t\t Print all interfaces");
+	            	System.out.println("local\t\tPrint all ip address assigned to this node");
 	            	System.out.println("nodes\t\tList of all nodes in cluster");
-	            	System.out.println("Interfaces\t\t Print all interfaces");
 	            }
 	        }
 	        catch(Exception e) {      	
@@ -117,6 +117,7 @@ public class DistributedControllers extends ReceiverAdapter{
 			e.printStackTrace();
 		}
 	}
+	
 	
 	/**
 	 * This method will be get executed when a new member has joined the 
@@ -200,6 +201,7 @@ public class DistributedControllers extends ReceiverAdapter{
 	    	if(newAdd.equals(ownAddr.toString())) {
 	    		if(!localIpPool.contains(ipAdd)) {
 	    			System.out.println("Add IP Address to list: " + ipAdd);
+	    			long startTime = System.currentTimeMillis();
 	    			String interfaceName = ControllerConstants.ETHER_NAME + ethCnt;
 	    			ethCnt++;
 	    			try {
@@ -213,6 +215,20 @@ public class DistributedControllers extends ReceiverAdapter{
 					}
 	    			localIpEthMap.put(ipAdd, interfaceName);
 	    			localIpPool.add(ipAdd);
+	    			long endTime = System.currentTimeMillis();
+	    			// now broadcast ARP packet for new IP
+	    			// So all request for that IP will come to this node rather than old node
+	    			try {
+						ControllerUtils.broadCastArpPkt(ipAdd);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+	    			
+	    			totalTime += endTime - startTime;
 	    			if(addrList.size() > 1) {
 	    				String remMsg = ControllerConstants.ADDR_REM_MSG + ControllerConstants.MSG_INFO_SEPERATOR + ipAdd;
 	    				System.out.println("\n\t Sending Remove message");
@@ -243,13 +259,18 @@ public class DistributedControllers extends ReceiverAdapter{
 
 	
 	public void clearAllAliases() throws IOException, InterruptedException {
+		long startTime = System.currentTimeMillis();
 		for(String str : localIpEthMap.values()) {
 			ControllerUtils.removeAlias(str);
 		}
+		long endTime = System.currentTimeMillis();
+		System.out.println("Time to switch " + localIpEthMap.size() + " IP = " + (endTime - startTime));
 	}
 	
-	
-	public static void main(String[] args) {
+	public void displayTime() {
+		System.out.println("Time to Add " + localIpEthMap.size() + " IP = " + totalTime);
+	}
+	public static void main(String[] args) throws UnknownHostException {
 		// TODO Auto-generated method stub
 		DistributedControllers dc= new DistributedControllers();
 		try {
@@ -259,7 +280,9 @@ public class DistributedControllers extends ReceiverAdapter{
 			e.printStackTrace();
 		} finally {
 			System.out.println("In Finally, Clearing all " );
+			
 			try {
+				dc.displayTime();
 				dc.clearAllAliases();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -269,5 +292,6 @@ public class DistributedControllers extends ReceiverAdapter{
 				e.printStackTrace();
 			}
 		}
+		
 	}
 }
